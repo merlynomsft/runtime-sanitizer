@@ -84,6 +84,7 @@ else
             echo "Unsupported sanitizer configuration detected: LD_PRELOAD references TSan runtime."
             echo "This script configures an ASan-based CoreCLR flow; mixing ASan runtime with preloaded TSan can hang or crash during startup."
             echo "Unset LD_PRELOAD (or preload libasan instead) before sourcing this script."
+            echo "Run: unset LD_PRELOAD"
             return 1
         fi
 
