@@ -35,6 +35,14 @@ if (NOT ${CLR_SINGLE_FILE_HOST_ONLY})
     endif()
 endif()
 
+# Build sanitizer support callbacks for host executables when ASan is enabled.
+if (CLR_CMAKE_ENABLE_ASAN)
+    add_library(minipal_sanitizer_support OBJECT ../minipal/sansupport.c)
+    target_include_directories(minipal_sanitizer_support PRIVATE
+        ${CLR_SRC_NATIVE_DIR}
+        ${CLR_SRC_NATIVE_DIR}/minipal)
+endif()
+
 if("${CLI_CMAKE_FALLBACK_OS}" STREQUAL "")
     message(FATAL_ERROR "Fallback rid needs to be specified to build the host")
 endif()
