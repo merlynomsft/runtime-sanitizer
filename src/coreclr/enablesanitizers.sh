@@ -80,7 +80,21 @@ else
         UBSAN_OPTIONS="print_stacktrace=1"
         ASAN_OPTIONS_CORECLR_DEFAULT="symbolize=1 use_sigaltstack=0 detect_leaks=0 handle_segv=0 allocator_may_return_null=1"
 
-        if [[ -n "${LD_PRELOAD:-}" && ( "$LD_PRELOAD" == *"libtsan.so"* || "$LD_PRELOAD" == *"libclang_rt.tsan"* ) ]]; then
+        __HasTSanPreload=0
+        if [[ -n "${LD_PRELOAD:-}" ]]; then
+            IFS=':' read -ra __PreloadEntries <<< "${LD_PRELOAD}"
+            for __PreloadEntry in "${__PreloadEntries[@]}"; do
+                __PreloadBaseName="$(basename "${__PreloadEntry}")"
+                case "${__PreloadBaseName}" in
+                    libtsan.so|libtsan.so.*|libclang_rt.tsan*.so|libclang_rt.tsan*)
+                        __HasTSanPreload=1
+                        break
+                        ;;
+                esac
+            done
+        fi
+
+        if [[ "$__HasTSanPreload" == 1 ]]; then
             echo "Unsupported sanitizer configuration detected: LD_PRELOAD references TSan runtime."
             echo "This script configures an ASan-based CoreCLR flow; mixing ASan runtime with preloaded TSan can hang or crash during startup."
             echo "Unset LD_PRELOAD (or preload libasan instead) before sourcing this script."
@@ -105,6 +119,9 @@ else
         # used by ASan at run-time
         if [[ -z "${ASAN_OPTIONS:-}" ]]; then
             ASAN_OPTIONS="$ASAN_OPTIONS_CORECLR_DEFAULT"
+        else
+            echo "Warning: ASAN_OPTIONS is already set by the environment."
+            echo "Ensure it is CoreCLR-compatible (for example: use_sigaltstack=0 and handle_segv=0)."
         fi
         export ASAN_OPTIONS
         echo "Setting ASAN_OPTIONS=\"$ASAN_OPTIONS\""
@@ -131,4 +148,9 @@ else
     unset __EnableLSan
     unset __TurnOff
     unset __Options
+    unset __HasTSanPreload
+    unset __PreloadEntries
+    unset __PreloadEntry
+    unset __PreloadBaseName
+    unset ASAN_OPTIONS_CORECLR_DEFAULT
 fi
