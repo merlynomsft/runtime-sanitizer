@@ -5,15 +5,15 @@
 ## Build
 
 ```bash
-dotnet build /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj
+dotnet build <repo-root>/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj
 ```
 
 ## Determine cache candidates
 
 ```bash
-dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- \
+dotnet run --project <repo-root>/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- \
   determine \
-  --repo-root /home/runner/work/runtime-sanitizer/runtime-sanitizer \
+  --repo-root <repo-root> \
   --profile libs-prereqs \
   --target-os linux \
   --target-arch x64 \
@@ -23,9 +23,9 @@ dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/t
 ## Pack local cache snapshots
 
 ```bash
-dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- \
+dotnet run --project <repo-root>/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- \
   pack \
-  --repo-root /home/runner/work/runtime-sanitizer/runtime-sanitizer \
+  --repo-root <repo-root> \
   --profile libs-prereqs \
   --artifact-prefix runtime-sanitizer-linux-x64-debug-libs \
   --output-dir /tmp/runtime-sanitizer-cache
@@ -44,9 +44,9 @@ export RUNTIME_SANITIZER_GITHUB_TOKEN='<token>'
 Then restore:
 
 ```bash
-dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- \
+dotnet run --project <repo-root>/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- \
   restore \
-  --repo-root /home/runner/work/runtime-sanitizer/runtime-sanitizer \
+  --repo-root <repo-root> \
   --owner merlynomsft \
   --repo runtime-sanitizer \
   --profile libs-prereqs \

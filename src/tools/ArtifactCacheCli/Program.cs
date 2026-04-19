@@ -28,7 +28,7 @@ internal static class Program
         ["libs-prereqs"] = new(
             "libs-prereqs",
             [
-                new CacheEntry("microsoft-netcore-app-ref", "artifacts/bin/microsoft.netcore.app.ref"),
+                new CacheEntry("microsoft.netcore.app.ref", "artifacts/bin/microsoft.netcore.app.ref"),
                 new CacheEntry("runtime-pack", "artifacts/bin/runtime/net11.0-{targetOs}-{targetArch}-{librariesConfigurationLower}"),
                 new CacheEntry("native-pack", "artifacts/bin/native/net11.0-{targetOs}-{targetArch}-{librariesConfigurationLower}")
             ]),
@@ -114,10 +114,8 @@ internal static class Program
                 File.Delete(archivePath);
             }
 
-            using (ZipArchive archive = ZipFile.Open(archivePath, ZipArchiveMode.Create))
-            {
-                AddDirectoryToArchive(archive, repoRoot, entry.AbsolutePath);
-            }
+            using ZipArchive archive = ZipFile.Open(archivePath, ZipArchiveMode.Create);
+            AddDirectoryToArchive(archive, repoRoot, entry.AbsolutePath);
 
             Console.WriteLine($"packed: {archivePath}");
         }
@@ -140,7 +138,7 @@ internal static class Program
 
         if (string.IsNullOrWhiteSpace(token))
         {
-            return Fail("A GitHub token is required. Set --token or RUNTIME_SANITIZER_GITHUB_TOKEN.");
+            return Fail("A GitHub token is required. Set --token, RUNTIME_SANITIZER_GITHUB_TOKEN, GITHUB_TOKEN, or GH_TOKEN.");
         }
 
         var context = CreateContext(options);
@@ -158,10 +156,20 @@ internal static class Program
                 continue;
             }
 
-            byte[] zipBytes = await client.GetByteArrayAsync($"https://api.github.com/repos/{owner}/{repo}/actions/artifacts/{artifact.Id}/zip").ConfigureAwait(false);
-            using var stream = new MemoryStream(zipBytes);
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
-            ExtractArchiveSafely(archive, repoRoot);
+            string temporaryArchive = Path.GetTempFileName();
+            try
+            {
+                await DownloadArtifactArchiveAsync(client, owner, repo, artifact.Id, artifactName, temporaryArchive).ConfigureAwait(false);
+                using ZipArchive archive = ZipFile.OpenRead(temporaryArchive);
+                ExtractArchiveSafely(archive, repoRoot);
+            }
+            finally
+            {
+                if (File.Exists(temporaryArchive))
+                {
+                    File.Delete(temporaryArchive);
+                }
+            }
 
             Console.WriteLine($"restored: {artifactName} (run {artifact.WorkflowRun?.Id?.ToString() ?? "unknown"})");
         }
@@ -188,12 +196,34 @@ internal static class Program
         }
 
         using Stream json = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-        ArtifactListResponse? parsed = await JsonSerializer.DeserializeAsync<ArtifactListResponse>(json).ConfigureAwait(false);
+        ArtifactListResponse? parsed;
+        try
+        {
+            parsed = await JsonSerializer.DeserializeAsync<ArtifactListResponse>(json).ConfigureAwait(false);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException($"Failed to parse artifact list response for '{artifactName}'.", ex);
+        }
 
         return parsed?.Artifacts?
             .Where(static a => !a.Expired)
             .OrderByDescending(static a => a.CreatedAt)
             .FirstOrDefault();
+    }
+
+    private static async Task DownloadArtifactArchiveAsync(HttpClient client, string owner, string repo, long artifactId, string artifactName, string destinationPath)
+    {
+        string url = $"https://api.github.com/repos/{owner}/{repo}/actions/artifacts/{artifactId}/zip";
+        using HttpResponseMessage response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"GitHub artifact download failed ({(int)response.StatusCode}) for artifact '{artifactName}' (id '{artifactId}').");
+        }
+
+        using Stream source = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        using FileStream destination = File.Create(destinationPath);
+        await source.CopyToAsync(destination).ConfigureAwait(false);
     }
 
     private static void AddDirectoryToArchive(ZipArchive archive, string repoRoot, string sourceDir)
@@ -202,7 +232,7 @@ internal static class Program
         foreach (string file in files)
         {
             string relativePath = Path.GetRelativePath(repoRoot, file).Replace('\\', '/');
-            archive.CreateEntryFromFile(file, relativePath, CompressionLevel.Fastest);
+            archive.CreateEntryFromFile(file, relativePath, CompressionLevel.Optimal);
         }
     }
 
@@ -211,13 +241,20 @@ internal static class Program
         string root = Path.GetFullPath(destinationRoot);
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
-            if (string.IsNullOrEmpty(entry.Name))
+            if (Path.IsPathRooted(entry.FullName) ||
+                (entry.FullName.Length >= 2 && char.IsAsciiLetter(entry.FullName[0]) && entry.FullName[1] == ':'))
+            {
+                throw new InvalidOperationException($"Archive entry '{entry.FullName}' uses an absolute path.");
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Name))
             {
                 continue;
             }
 
             string destinationPath = Path.GetFullPath(Path.Combine(root, entry.FullName));
-            if (!destinationPath.StartsWith(root, StringComparison.Ordinal))
+            string relativePath = Path.GetRelativePath(root, destinationPath);
+            if (relativePath.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relativePath))
             {
                 throw new InvalidOperationException($"Archive entry '{entry.FullName}' resolves outside repository root.");
             }
