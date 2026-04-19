@@ -78,8 +78,6 @@ else
     else
         # when Clang 3.8 available, add: suppressions=$(readlink -f sanitizersuppressions.txt)
         UBSAN_OPTIONS="print_stacktrace=1"
-        ASAN_OPTIONS_CORECLR_DEFAULT="symbolize=1 use_sigaltstack=0 detect_leaks=0 handle_segv=0 allocator_may_return_null=1"
-
         __HasTSanPreload=0
         if [[ -n "${LD_PRELOAD:-}" ]]; then
             IFS=':' read -ra __PreloadEntries <<< "${LD_PRELOAD}"
@@ -118,7 +116,7 @@ else
 
         # used by ASan at run-time
         if [[ -z "${ASAN_OPTIONS:-}" ]]; then
-            ASAN_OPTIONS="$ASAN_OPTIONS_CORECLR_DEFAULT"
+            ASAN_OPTIONS="symbolize=1 use_sigaltstack=0 detect_leaks=0 handle_segv=0 allocator_may_return_null=1"
         else
             echo "Warning: ASAN_OPTIONS is already set by the environment."
             echo "Ensure it is CoreCLR-compatible (for example: use_sigaltstack=0 and handle_segv=0)."
@@ -152,5 +150,4 @@ else
     unset __PreloadEntries
     unset __PreloadEntry
     unset __PreloadBaseName
-    unset ASAN_OPTIONS_CORECLR_DEFAULT
 fi
