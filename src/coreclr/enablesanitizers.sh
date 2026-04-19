@@ -78,6 +78,14 @@ else
     else
         # when Clang 3.8 available, add: suppressions=$(readlink -f sanitizersuppressions.txt)
         UBSAN_OPTIONS="print_stacktrace=1"
+        ASAN_OPTIONS_DEFAULT="symbolize=1 use_sigaltstack=0 detect_leaks=0 handle_segv=0 allocator_may_return_null=1"
+
+        if [[ -n "${LD_PRELOAD:-}" && ( "$LD_PRELOAD" == *"libtsan.so"* || "$LD_PRELOAD" == *"libclang_rt.tsan"* ) ]]; then
+            echo "Unsupported sanitizer configuration detected: LD_PRELOAD references TSan runtime."
+            echo "This script configures an ASan-based CoreCLR flow; mixing ASan runtime with preloaded TSan can hang or crash during startup."
+            echo "Unset LD_PRELOAD (or preload libasan instead) before sourcing this script."
+            return 1
+        fi
 
         if [ $__EnableUBSan == 1 ]; then
             __Options="$__Options ubsan"
@@ -94,6 +102,9 @@ else
         echo "Setting DEBUG_SANITIZERS=$DEBUG_SANITIZERS"
 
         # used by ASan at run-time
+        if [[ -z "${ASAN_OPTIONS:-}" ]]; then
+            ASAN_OPTIONS="$ASAN_OPTIONS_DEFAULT"
+        fi
         export ASAN_OPTIONS
         echo "Setting ASAN_OPTIONS=\"$ASAN_OPTIONS\""
 
