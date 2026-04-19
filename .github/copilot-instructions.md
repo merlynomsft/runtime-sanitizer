@@ -238,6 +238,20 @@ Do not mark a regression test task as complete until both conditions are confirm
 
 **Windows:** Use `build.cmd` instead of `build.sh`.
 
+### Artifact cache bootstrap for long-running local builds
+
+If you need to reuse expensive local artifacts between sessions (for example `artifacts/bin/microsoft.netcore.app.ref`), use:
+
+`/home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj`
+
+1. **Determine cache candidates**
+   - `dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- determine --repo-root /home/runner/work/runtime-sanitizer/runtime-sanitizer --profile libs-prereqs --target-os linux --target-arch x64 --libraries-configuration Debug`
+2. **Pack local snapshots for artifact upload**
+   - `dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- pack --repo-root /home/runner/work/runtime-sanitizer/runtime-sanitizer --profile libs-prereqs --artifact-prefix runtime-sanitizer-linux-x64-debug-libs --output-dir /tmp/runtime-sanitizer-cache`
+3. **Restore from GitHub Actions artifacts before long builds**
+   - `dotnet run --project /home/runner/work/runtime-sanitizer/runtime-sanitizer/src/tools/ArtifactCacheCli/ArtifactCacheCli.csproj -- restore --repo-root /home/runner/work/runtime-sanitizer/runtime-sanitizer --owner merlynomsft --repo runtime-sanitizer --profile libs-prereqs --artifact-prefix runtime-sanitizer-linux-x64-debug-libs`
+   - token source: `--token`, `RUNTIME_SANITIZER_GITHUB_TOKEN`, `GITHUB_TOKEN`, or `GH_TOKEN` (must have `actions:read`)
+
 ---
 
 ## Reference
